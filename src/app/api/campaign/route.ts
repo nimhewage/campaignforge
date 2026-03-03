@@ -209,16 +209,57 @@ ${NO_EMOJI}`,
     model: "mistral-large-latest",
     field: "trends",
     tools: [{ type: "web_search", web_search: {} }],
-    system: `You are a Trend Analyst. Search the web for REAL current trends relevant to the campaign.
-If web search is available, verify trends with actual data.
+    system: `You are a Trend Analyst with access to REAL-TIME Google Trends data and live SEO insights.
+Analyze the provided trends data and web search results to deliver actionable intelligence.
+
+CRITICAL: All data must be REAL and CITED with sources. Format your analysis with these exact headers:
+
+## Real-Time Trend Analysis
+Present the actual Google Trends data with:
+- Search interest over time (with percentage changes)
+- Geographic breakdown showing top regions
+- Rising queries with growth percentages
+- Related search terms with search volume indicators
+**Source: [Cite the data source provided]**
+
 ## Current Industry Trends
-Top 5 relevant trends with platform breakdown.
+Top 5 relevant trends with:
+- Platform-specific performance data (Instagram, TikTok, LinkedIn engagement rates)
+- Actual statistics and percentages from web search
+- Competitive intelligence from similar campaigns
+**Source: [Cite web search results]**
+
 ## Content Formats Performing Now
-Video lengths, post formats, UGC patterns, interactive content with engagement data.
-## Hashtag and Keyword Strategy
-10 hashtags (mix broad + niche), 5 SEO keywords, trending search terms.
+Based on current data:
+- Video lengths with engagement metrics (e.g., "15-30 sec videos: 2.3x higher engagement")
+- Post formats with performance data
+- UGC patterns with actual examples
+- Interactive content ROI
+**Source: [Cite sources]**
+
+## Keyword & SEO Strategy
+From Google Trends data:
+- 10 trending hashtags with search volume/growth
+- 5 high-value SEO keywords with search trends
+- Rising search terms with "Breakout" or percentage growth
+- Long-tail opportunities
+**Source: Google Trends (via SerpApi)**
+
 ## Cultural Moments & Timing
-Upcoming events, seasonal hooks, cultural moments to leverage with dates.
+Upcoming events with specific dates:
+- Seasonal hooks (with dates)
+- Industry events
+- Cultural moments to leverage
+**Source: [Cite sources]**
+
+## Competitive Intelligence
+Real competitor data:
+- Top 3 competitors with actual metrics
+- Their content strategies with examples
+- Performance gaps to exploit
+**Source: [Cite sources]**
+
+REMEMBER: Every section must include **Source:** citations. Use actual numbers, percentages, and dates from the provided data.
 ${NO_EMOJI}`,
   },
   content_creator: {
@@ -413,11 +454,50 @@ async function handleExecute(
       // ── Phase: Research + Trends (parallel) ──
       try { ctrl.enqueue(enc.encode(sse({ type: "phase_start", phase: "research" }))); } catch { /* */ }
 
+      // Fetch real-time trends data first
+      let trendsData = null;
+      try {
+        const trendsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/trends`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brief }),
+        });
+        if (trendsRes.ok) {
+          const trendsJson = await trendsRes.json();
+          trendsData = trendsJson.data;
+        }
+      } catch (err) {
+        console.error("Failed to fetch trends data:", err);
+      }
+
+      // Add trends data to context
+      let trendsContext = baseContext;
+      if (trendsData) {
+        trendsContext += `\n\n=== REAL-TIME GOOGLE TRENDS DATA ===
+Keywords Analyzed: ${trendsData.keywords.join(", ")}
+Data Source: ${trendsData.source}
+Timestamp: ${trendsData.timestamp}
+
+Interest Over Time (Last 12 months):
+${trendsData.interestOverTime.map((d: any) => `${d.date}: ${d.value}%`).join("\n")}
+
+Related Queries (Top 10):
+${trendsData.relatedQueries.map((q: any, i: number) => `${i + 1}. "${q.query}" - Search Interest: ${q.value}%`).join("\n")}
+
+Rising Queries (Breakout trends):
+${trendsData.risingQueries.map((q: any, i: number) => `${i + 1}. "${q.query}" - Growth: ${q.growth}`).join("\n")}
+
+Geographic Interest (Top regions):
+${trendsData.geoData.map((g: any, i: number) => `${i + 1}. ${g.location}: ${g.value}%`).join("\n")}
+
+=== END TRENDS DATA ===`;
+      }
+
       const [resOut, trendOut] = await Promise.all([
         runAgent("researcher", baseContext, ctrl, enc, customModelId),
         (async () => {
           await wait(1500);
-          return runAgent("trend_analyst", baseContext, ctrl, enc, customModelId);
+          return runAgent("trend_analyst", trendsContext, ctrl, enc, customModelId);
         })(),
       ]);
       if (resOut) outputs.research = resOut;
