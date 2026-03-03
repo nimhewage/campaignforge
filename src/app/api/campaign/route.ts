@@ -20,8 +20,7 @@ function wait(ms: number): Promise<void> {
 function stripEmojis(text: string): string {
   return text
     .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
-    .replace(/```markdown\n?/g, "")
-    .replace(/```json\n?/g, "")
+    .replace(/```(?:markdown|json|html|text|csv)?\n?/g, "")
     .replace(/```\n?$/gm, "")
     .replace(/^```$/gm, "");
 }

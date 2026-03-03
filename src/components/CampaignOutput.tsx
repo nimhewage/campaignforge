@@ -33,6 +33,10 @@ const TABS: TabDef[] = [
 
 /* ---- Inline formatting ---- */
 
+function stripMd(text: string): string {
+  return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/`(.*?)`/g, "$1").replace(/[*_~]/g, "");
+}
+
 function Inline({ text }: { text: string }) {
   const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
   return (
@@ -52,7 +56,7 @@ function Inline({ text }: { text: string }) {
 
 function cleanText(raw: string): string {
   return raw
-    .replace(/```markdown\n?/g, "")
+    .replace(/```(?:markdown|json|html|text|csv)?\n?/g, "")
     .replace(/```\n?$/gm, "")
     .replace(/^```$/gm, "")
     .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
@@ -73,7 +77,7 @@ function Md({ text }: { text: string }) {
           <thead>
             <tr className="bg-surface-2/60">
               {tHead.map((h, j) => (
-                <th key={j} className="text-left py-2 px-3 text-tx-2 font-semibold border-b border-edge">{h.trim()}</th>
+                <th key={j} className="text-left py-2 px-3 text-tx-0 font-semibold border-b border-edge">{stripMd(h)}</th>
               ))}
             </tr>
           </thead>
@@ -81,7 +85,7 @@ function Md({ text }: { text: string }) {
             {tRows.map((row, j) => (
               <tr key={j} className="border-b border-edge last:border-0 hover:bg-surface-2/20 transition-colors">
                 {row.map((c, k) => (
-                  <td key={k} className="py-2 px-3 text-tx-2">{c.trim()}</td>
+                  <td key={k} className="py-2 px-3 text-tx-2"><Inline text={c.trim()} /></td>
                 ))}
               </tr>
             ))}

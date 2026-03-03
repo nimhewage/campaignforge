@@ -11,6 +11,7 @@ import RefinementChat from "@/components/RefinementChat";
 import ExportPanel from "@/components/ExportPanel";
 import KnowledgeBase from "@/components/KnowledgeBase";
 import AgentNetwork from "@/components/AgentNetwork";
+import VisualGallery from "@/components/VisualGallery";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -45,6 +46,14 @@ export interface PlanData {
   budget_notes: string;
 }
 
+export interface Visual {
+  type: string;
+  url: string | null;
+  format: "image" | "video";
+  prompt: string;
+  error?: string;
+}
+
 export interface CampaignData {
   brief: string;
   planRaw?: string;
@@ -53,6 +62,7 @@ export interface CampaignData {
   content?: string;
   strategy?: string;
   report?: string;
+  visuals?: Visual[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -134,6 +144,7 @@ export default function Home() {
   const abortRef = useRef<AbortController | null>(null);
   const [kbOpen, setKbOpen] = useState(false);
   const [customModelId, setCustomModelId] = useState<string | null>(null);
+  const [generatingVisuals, setGeneratingVisuals] = useState(false);
 
   const updateAgent = useCallback((id: string, patch: Partial<AgentState>) => {
     setAgents((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
@@ -317,6 +328,37 @@ export default function Home() {
     }
   }, [campaign, buildStreamHandlers, updateAgent]);
 
+  /* ---------- Generate Visuals ---------- */
+
+  const handleGenerateVisuals = useCallback(async () => {
+    if (!campaign?.content || !campaign?.brief) return;
+    
+    setGeneratingVisuals(true);
+    try {
+      const res = await fetch("/api/visuals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate",
+          content: campaign.content,
+          campaignName: campaign.brief.split("\n")[0] || "Campaign",
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate visuals");
+      }
+
+      const result = await res.json();
+      setCampaign((prev) => (prev ? { ...prev, visuals: result.visuals || [] } : prev));
+    } catch (err: unknown) {
+      console.error("Visual generation error:", err);
+    } finally {
+      setGeneratingVisuals(false);
+    }
+  }, [campaign]);
+
   /* ---------- Stop ---------- */
 
   const handleStop = useCallback(() => {
@@ -410,6 +452,15 @@ export default function Home() {
 
             {/* Material gallery */}
             {campaign?.content && <MaterialGallery content={campaign.content} />}
+
+            {/* Visual content gallery */}
+            {phase === "complete" && campaign?.content && (
+              <VisualGallery
+                visuals={campaign.visuals || []}
+                isGenerating={generatingVisuals}
+                onGenerate={handleGenerateVisuals}
+              />
+            )}
 
             {/* Post-completion: refinement + export */}
             {phase === "complete" && (
