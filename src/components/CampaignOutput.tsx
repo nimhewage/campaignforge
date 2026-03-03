@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import TrendsAnalytics from "./TrendsAnalytics";
+import StrategySlides from "./StrategySlides";
 
 interface Props {
   campaign: CampaignData | null;
@@ -270,6 +271,11 @@ export default function CampaignOutput({ campaign, activeTab, onTabChange, onRef
           <div className="anim-fade-up" key={effectiveTab}>
             {/* Show visual analytics for trends tab */}
             {effectiveTab === "trends" && <TrendsAnalytics trendsText={effectiveContent} />}
+
+            {/* Show presentation slides for strategy tab */}
+            {effectiveTab === "strategy" && campaign && (
+              <StrategySlides strategyText={effectiveContent} campaignName={campaign.brief} />
+            )}
             
             {/* Markdown content */}
             <Md text={effectiveContent} />
