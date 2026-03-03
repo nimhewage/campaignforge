@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  --color-surface-0: #08080c;
+  --color-surface-1: #0e0e14;
+  --color-surface-2: #151520;
+  --color-surface-3: #1c1c2a;
+  --color-surface-4: #252538;
+
+  --color-edge: rgba(255, 255, 255, 0.06);
+  --color-edge-b: rgba(255, 255, 255, 0.12);
+
+  --color-tx-0: #f4f4f5;
+  --color-tx-1: #d4d4d8;
+  --color-tx-2: #a1a1aa;
+  --color-tx-3: #71717a;
+  --color-tx-4: #3f3f46;
+
+  --color-brand: #818cf8;
+  --color-brand-bright: #a5b4fc;
+  --color-brand-dim: rgba(99, 102, 241, 0.10);
+
+  --color-ok: #34d399;
+  --color-ok-dim: rgba(52, 211, 153, 0.08);
+  --color-fail: #f87171;
+  --color-fail-dim: rgba(248, 113, 113, 0.08);
+}
+
+*, *::before, *::after { border-color: var(--color-edge); }
+
+html {
+  background: var(--color-surface-0);
+  color: var(--color-tx-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-surface-4); border-radius: 99px; }
+
+/* ---- Animations ---- */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spawn {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0.4); }
+  70%  { box-shadow: 0 0 0 5px rgba(129, 140, 248, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0); }
+}
+@keyframes progress-indeterminate {
+  0%   { left: -30%; width: 30%; }
+  50%  { left: 50%; width: 30%; }
+  100% { left: 100%; width: 0%; }
+}
+
+.anim-fade-up  { animation: fade-up 0.3s ease-out both; }
+.anim-spawn    { animation: spawn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-ring     { animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+.progress-bar-indeterminate { position: relative; overflow: hidden; }
+.progress-bar-indeterminate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-brand), transparent);
+  border-radius: 99px;
+  animation: progress-indeterminate 1.8s ease-in-out infinite;
+}
+
+/* ---- Flow connector animations ---- */
+
+@keyframes flow-dash {
+  to { stroke-dashoffset: -16; }
+}
+@keyframes dot-pulse {
+  0%, 100% { opacity: 0.6; r: 2.5; }
+  50%      { opacity: 1;   r: 3.5; }
+}
+
+.flow-path-active {
+  stroke-dasharray: 8 8;
+  animation: flow-dash 0.7s linear infinite;
+}
+
+/* ---- Card utilities ---- */
+
+.glass-card {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-edge);
+  border-radius: 14px;
+}
+.glow-brand {
+  box-shadow: 0 0 24px -6px rgba(99, 102, 241, 0.2), 0 0 64px -16px rgba(99, 102, 241, 0.1);
+}
