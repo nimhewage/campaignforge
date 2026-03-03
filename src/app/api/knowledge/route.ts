@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
 const MISTRAL_BASE = "https://api.mistral.ai/v1";
-const FINE_TUNE_BASE_MODEL = "open-mistral-7b";
 
 /* ------------------------------------------------------------------ */
 /*  Convert raw text into JSONL training samples                       */
@@ -14,46 +13,27 @@ interface TrainingSample {
 
 function textToSamples(text: string): TrainingSample[] {
   const samples: TrainingSample[] = [];
+  const SYS = "You are a marketing expert with deep knowledge of this brand. Use the brand knowledge to create accurate, on-brand marketing content.";
 
   const chunks = text.split(/\n\s*\n/).filter((p) => p.trim().length > 30);
 
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i].trim();
+  for (const chunk of chunks) {
+    const trimmed = chunk.trim();
 
     samples.push({
       messages: [
-        {
-          role: "system",
-          content:
-            "You are a marketing expert with deep knowledge of this brand. Use the brand knowledge to create accurate, on-brand marketing content.",
-        },
-        {
-          role: "user",
-          content: `Based on our brand knowledge, describe: ${chunk.slice(0, 60)}...`,
-        },
-        {
-          role: "assistant",
-          content: chunk,
-        },
+        { role: "system", content: SYS },
+        { role: "user", content: `Based on our brand knowledge, describe: ${trimmed.slice(0, 60)}...` },
+        { role: "assistant", content: trimmed },
       ],
     });
 
-    if (chunk.length > 100) {
+    if (trimmed.length > 100) {
       samples.push({
         messages: [
-          {
-            role: "system",
-            content:
-              "You are a marketing expert with deep knowledge of this brand. Use the brand knowledge to create accurate, on-brand marketing content.",
-          },
-          {
-            role: "user",
-            content: "Summarize the following brand information and highlight key marketing angles.",
-          },
-          {
-            role: "assistant",
-            content: `Key points: ${chunk.replace(/\n/g, " ").slice(0, 500)}`,
-          },
+          { role: "system", content: SYS },
+          { role: "user", content: "Summarize the following brand information and highlight key marketing angles." },
+          { role: "assistant", content: `Key points: ${trimmed.replace(/\n/g, " ").slice(0, 500)}` },
         ],
       });
     }
@@ -61,29 +41,16 @@ function textToSamples(text: string): TrainingSample[] {
 
   if (samples.length < 10) {
     const fullText = chunks.join("\n\n");
-    const campaignTypes = [
-      "social media campaign",
-      "email marketing campaign",
-      "brand awareness campaign",
-      "product launch campaign",
-      "content marketing strategy",
+    const types = [
+      "social media campaign", "email marketing campaign", "brand awareness campaign",
+      "product launch campaign", "content marketing strategy",
     ];
-    for (const campaignType of campaignTypes) {
+    for (const t of types) {
       samples.push({
         messages: [
-          {
-            role: "system",
-            content:
-              "You are a marketing expert with deep knowledge of this brand. Use the brand knowledge to create accurate, on-brand marketing content.",
-          },
-          {
-            role: "user",
-            content: `Create a ${campaignType} based on our brand knowledge.`,
-          },
-          {
-            role: "assistant",
-            content: `Based on the brand knowledge:\n\n${fullText.slice(0, 800)}\n\nHere is a ${campaignType} approach that aligns with the brand identity and targets the right audience segments.`,
-          },
+          { role: "system", content: SYS },
+          { role: "user", content: `Create a ${t} based on our brand knowledge.` },
+          { role: "assistant", content: `Based on the brand knowledge:\n\n${fullText.slice(0, 800)}\n\nHere is a ${t} approach that aligns with the brand identity and targets the right audience segments.` },
         ],
       });
     }
@@ -92,15 +59,15 @@ function textToSamples(text: string): TrainingSample[] {
   return samples;
 }
 
-function samplesToJsonl(samples: TrainingSample[]): string {
-  return samples.map((s) => JSON.stringify(s)).join("\n");
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3.8);
 }
 
 /* ------------------------------------------------------------------ */
 /*  Mistral API helpers                                                */
 /* ------------------------------------------------------------------ */
 
-async function uploadFile(jsonlContent: string): Promise<string> {
+async function uploadFile(jsonlContent: string): Promise<{ fileId: string; fileSize: number }> {
   const blob = new Blob([jsonlContent], { type: "application/jsonl" });
   const formData = new FormData();
   formData.append("file", blob, "training_data.jsonl");
@@ -118,10 +85,22 @@ async function uploadFile(jsonlContent: string): Promise<string> {
   }
 
   const data = await res.json();
-  return data.id;
+  return { fileId: data.id, fileSize: blob.size };
 }
 
-async function createFineTuneJob(fileId: string): Promise<{ jobId: string; status: string; modelId?: string }> {
+interface CreateJobResult {
+  jobId: string;
+  status: string;
+  modelId?: string;
+  model: string;
+  trainedTokens?: number;
+}
+
+async function createFineTuneJob(
+  fileId: string,
+  model: string,
+  hyperparameters: { learning_rate?: number; training_steps?: number }
+): Promise<CreateJobResult> {
   const res = await fetch(`${MISTRAL_BASE}/fine_tuning/jobs`, {
     method: "POST",
     headers: {
@@ -129,12 +108,13 @@ async function createFineTuneJob(fileId: string): Promise<{ jobId: string; statu
       Authorization: `Bearer ${MISTRAL_API_KEY}`,
     },
     body: JSON.stringify({
-      model: FINE_TUNE_BASE_MODEL,
+      model,
       training_files: [fileId],
       hyperparameters: {
-        training_steps: 50,
-        learning_rate: 1e-5,
+        training_steps: hyperparameters.training_steps || 50,
+        learning_rate: hyperparameters.learning_rate || 0.0001,
       },
+      auto_start: true,
     }),
   });
 
@@ -148,10 +128,28 @@ async function createFineTuneJob(fileId: string): Promise<{ jobId: string; statu
     jobId: data.id,
     status: data.status,
     modelId: data.fine_tuned_model,
+    model: data.model,
+    trainedTokens: data.trained_tokens,
   };
 }
 
-async function getJobStatus(jobId: string): Promise<{ status: string; modelId?: string }> {
+interface DetailedJobStatus {
+  status: string;
+  modelId?: string;
+  trainedTokens?: number;
+  events?: { name?: string; message?: string; created_at?: number }[];
+  checkpoints?: {
+    step_number?: number;
+    metrics?: { train_loss?: number; valid_loss?: number; valid_mean_token_accuracy?: number };
+    created_at?: number;
+  }[];
+  hyperparameters?: { learning_rate?: number; training_steps?: number; epochs?: number };
+  model?: string;
+  createdAt?: number;
+  modifiedAt?: number;
+}
+
+async function getJobStatus(jobId: string): Promise<DetailedJobStatus> {
   const res = await fetch(`${MISTRAL_BASE}/fine_tuning/jobs/${jobId}`, {
     headers: { Authorization: `Bearer ${MISTRAL_API_KEY}` },
   });
@@ -165,6 +163,13 @@ async function getJobStatus(jobId: string): Promise<{ status: string; modelId?: 
   return {
     status: data.status,
     modelId: data.fine_tuned_model,
+    trainedTokens: data.trained_tokens,
+    events: data.events,
+    checkpoints: data.checkpoints,
+    hyperparameters: data.hyperparameters,
+    model: data.model,
+    createdAt: data.created_at,
+    modifiedAt: data.modified_at,
   };
 }
 
@@ -182,26 +187,53 @@ export async function POST(req: NextRequest) {
 
   switch (action) {
     case "train": {
-      const { text } = body;
+      const { text, model, hyperparameters, dryRun } = body;
       if (!text || typeof text !== "string") {
         return Response.json({ error: "Text content required" }, { status: 400 });
       }
 
       try {
         const samples = textToSamples(text);
-        const jsonl = samplesToJsonl(samples);
+        const jsonl = samples.map((s) => JSON.stringify(s)).join("\n");
+        const estTokens = estimateTokens(jsonl);
+        const baseModel = model || "open-mistral-7b";
 
-        const fileId = await uploadFile(jsonl);
-        const job = await createFineTuneJob(fileId);
+        if (dryRun) {
+          return Response.json({
+            status: "dry_run",
+            sampleCount: samples.length,
+            estimatedTokens: estTokens,
+            estimatedCost: Math.max(4, (estTokens / 1000000) * 8),
+            model: baseModel,
+            jsonlSizeBytes: new Blob([jsonl]).size,
+            hyperparameters: hyperparameters || { learning_rate: 0.0001, training_steps: 50 },
+          });
+        }
+
+        const { fileId, fileSize } = await uploadFile(jsonl);
+
+        const job = await createFineTuneJob(
+          fileId,
+          baseModel,
+          hyperparameters || {}
+        );
 
         if (job.status === "SUCCESS" && job.modelId) {
-          return Response.json({ status: "complete", modelId: job.modelId });
+          return Response.json({
+            status: "complete",
+            modelId: job.modelId,
+            trainedTokens: job.trainedTokens,
+          });
         }
 
         return Response.json({
           status: "training",
           jobId: job.jobId,
           sampleCount: samples.length,
+          estimatedTokens: estTokens,
+          model: baseModel,
+          fileId,
+          fileSize,
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Training failed";
