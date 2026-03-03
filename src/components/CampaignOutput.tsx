@@ -2,11 +2,14 @@
 
 import type { CampaignData } from "@/app/page";
 import React, { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Search, TrendingUp, PenLine, Target, FileText,
   ClipboardCheck, Clipboard, RefreshCw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import TrendsChart from "./TrendsChart";
 
 interface Props {
   campaign: CampaignData | null;
@@ -31,28 +34,7 @@ const TABS: TabDef[] = [
   { id: "report", label: "Report", icon: FileText, agentId: "report_generator" },
 ];
 
-/* ---- Inline formatting ---- */
-
-function stripMd(text: string): string {
-  return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/`(.*?)`/g, "$1").replace(/[*_~]/g, "");
-}
-
-function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
-  return (
-    <>
-      {parts.map((p, i) => {
-        if (p.startsWith("**") && p.endsWith("**"))
-          return <strong key={i} className="text-tx-0 font-semibold">{p.slice(2, -2)}</strong>;
-        if (p.startsWith("`") && p.endsWith("`"))
-          return <code key={i} className="text-brand text-[11px] bg-brand-dim/60 px-1 py-0.5 rounded">{p.slice(1, -1)}</code>;
-        return <React.Fragment key={i}>{p}</React.Fragment>;
-      })}
-    </>
-  );
-}
-
-/* ---- Markdown renderer ---- */
+/* ---- Markdown renderer with react-markdown ---- */
 
 function cleanText(raw: string): string {
   return raw
@@ -63,98 +45,114 @@ function cleanText(raw: string): string {
 }
 
 function Md({ text }: { text: string }) {
-  const lines = cleanText(text).split("\n");
-  const out: React.ReactNode[] = [];
-  let tHead: string[] = [];
-  let tRows: string[][] = [];
-  let inTable = false;
-
-  const flushTable = () => {
-    if (!tHead.length) return;
-    out.push(
-      <div key={`t${out.length}`} className="my-4 overflow-x-auto rounded-lg border border-edge">
-        <table className="w-full text-[12px]">
-          <thead>
-            <tr className="bg-surface-2/60">
-              {tHead.map((h, j) => (
-                <th key={j} className="text-left py-2 px-3 text-tx-0 font-semibold border-b border-edge">{stripMd(h)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {tRows.map((row, j) => (
-              <tr key={j} className="border-b border-edge last:border-0 hover:bg-surface-2/20 transition-colors">
-                {row.map((c, k) => (
-                  <td key={k} className="py-2 px-3 text-tx-2"><Inline text={c.trim()} /></td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-    tHead = [];
-    tRows = [];
-    inTable = false;
-  };
-
-  lines.forEach((raw, i) => {
-    const ln = raw.trim();
-    if (ln.startsWith("|") && ln.endsWith("|")) {
-      const cells = ln.slice(1, -1).split("|").map((c) => c.trim());
-      if (cells.every((c) => /^[-:]+$/.test(c))) return;
-      if (!inTable) { inTable = true; tHead = cells; } else { tRows.push(cells); }
-      return;
-    }
-    if (inTable) flushTable();
-
-    if (ln.startsWith("### ")) {
-      out.push(
-        <h3 key={i} className="text-[13px] font-semibold text-tx-0 mt-6 mb-1.5 flex items-center gap-2">
-          <span className="w-[3px] h-4 rounded-full bg-gradient-to-b from-brand to-violet-500" />
-          <Inline text={ln.slice(4)} />
-        </h3>
-      );
-    } else if (ln.startsWith("## ")) {
-      out.push(
-        <h2 key={i} className="text-[15px] font-bold text-tx-0 mt-7 mb-2 pb-2 border-b border-edge">
-          <Inline text={ln.slice(3)} />
-        </h2>
-      );
-    } else if (ln.startsWith("# ")) {
-      out.push(
-        <h1 key={i} className="text-lg font-bold text-tx-0 mt-8 mb-2">
-          <Inline text={ln.slice(2)} />
-        </h1>
-      );
-    } else if (ln.startsWith("- ") || ln.startsWith("* ")) {
-      out.push(
-        <div key={i} className="flex gap-2.5 ml-1 mb-0.5">
-          <span className="mt-[7px] w-1 h-1 rounded-full bg-brand/40 flex-shrink-0" />
-          <p className="text-[12.5px] text-tx-2 leading-relaxed"><Inline text={ln.slice(2)} /></p>
-        </div>
-      );
-    } else if (/^\d+\.\s/.test(ln)) {
-      const num = ln.match(/^(\d+)\./)?.[1];
-      out.push(
-        <div key={i} className="flex gap-2.5 ml-1 mb-0.5">
-          <span className="text-[11px] font-semibold text-brand min-w-[18px] mt-[1px]">{num}.</span>
-          <p className="text-[12.5px] text-tx-2 leading-relaxed"><Inline text={ln.replace(/^\d+\.\s/, "")} /></p>
-        </div>
-      );
-    } else if (ln === "---") {
-      out.push(<hr key={i} className="border-edge my-5" />);
-    } else if (ln === "") {
-      out.push(<div key={i} className="h-2" />);
-    } else {
-      out.push(
-        <p key={i} className="text-[12.5px] text-tx-2 leading-relaxed"><Inline text={ln} /></p>
-      );
-    }
-  });
-
-  if (inTable) flushTable();
-  return <>{out}</>;
+  const cleaned = cleanText(text);
+  
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        h1: ({ children }) => (
+          <h1 className="text-lg font-bold text-tx-0 mt-8 mb-2">{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="text-[15px] font-bold text-tx-0 mt-7 mb-2 pb-2 border-b border-edge">{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-[13px] font-semibold text-tx-0 mt-6 mb-1.5 flex items-center gap-2">
+            <span className="w-[3px] h-4 rounded-full bg-gradient-to-b from-brand to-violet-500" />
+            <span>{children}</span>
+          </h3>
+        ),
+        h4: ({ children }) => (
+          <h4 className="text-[12px] font-semibold text-tx-1 mt-4 mb-1">{children}</h4>
+        ),
+        p: ({ children }) => (
+          <p className="text-[12.5px] text-tx-2 leading-relaxed mb-3">{children}</p>
+        ),
+        ul: ({ children }) => (
+          <ul className="space-y-0.5 mb-3">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="space-y-0.5 mb-3">{children}</ol>
+        ),
+        li: ({ children, ordered }) => (
+          <div className="flex gap-2.5 ml-1">
+            {ordered ? (
+              <span className="text-[11px] font-semibold text-brand min-w-[18px] mt-[1px]">•</span>
+            ) : (
+              <span className="mt-[7px] w-1 h-1 rounded-full bg-brand/40 flex-shrink-0" />
+            )}
+            <div className="text-[12.5px] text-tx-2 leading-relaxed">{children}</div>
+          </div>
+        ),
+        strong: ({ children }) => (
+          <strong className="text-tx-0 font-semibold">{children}</strong>
+        ),
+        em: ({ children }) => (
+          <em className="text-tx-1 italic">{children}</em>
+        ),
+        code: ({ children, className }) => {
+          const isBlock = className?.includes("language-");
+          if (isBlock) {
+            return (
+              <pre className="bg-surface-2/60 rounded-lg p-3 my-3 overflow-x-auto">
+                <code className="text-[11px] font-mono text-tx-1">{children}</code>
+              </pre>
+            );
+          }
+          return (
+            <code className="text-brand text-[11px] bg-brand-dim/60 px-1 py-0.5 rounded font-mono">
+              {children}
+            </code>
+          );
+        },
+        table: ({ children }) => (
+          <div className="my-4 overflow-x-auto rounded-lg border border-edge">
+            <table className="w-full text-[12px]">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="bg-surface-2/60">{children}</thead>
+        ),
+        tbody: ({ children }) => (
+          <tbody>{children}</tbody>
+        ),
+        tr: ({ children }) => (
+          <tr className="border-b border-edge last:border-0 hover:bg-surface-2/20 transition-colors">
+            {children}
+          </tr>
+        ),
+        th: ({ children }) => (
+          <th className="text-left py-2 px-3 text-tx-0 font-semibold border-b border-edge">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="py-2 px-3 text-tx-2">{children}</td>
+        ),
+        hr: () => (
+          <hr className="border-edge my-5" />
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-brand/30 pl-4 my-3 text-tx-3 italic">
+            {children}
+          </blockquote>
+        ),
+        a: ({ children, href }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand hover:text-brand-bright underline"
+          >
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {cleaned}
+    </ReactMarkdown>
+  );
 }
 
 /* ---- Copy / Refine buttons ---- */
@@ -270,6 +268,10 @@ export default function CampaignOutput({ campaign, activeTab, onTabChange, onRef
       <div className="p-5 overflow-y-auto max-h-[600px]">
         {effectiveContent && (
           <div className="anim-fade-up" key={effectiveTab}>
+            {/* Show charts for trends tab */}
+            {effectiveTab === "trends" && <TrendsChart trendsText={effectiveContent} />}
+            
+            {/* Markdown content */}
             <Md text={effectiveContent} />
           </div>
         )}
