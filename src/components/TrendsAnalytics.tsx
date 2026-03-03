@@ -44,95 +44,90 @@ function extractTrendsData(text: string) {
   const timeSeriesData: TrendPoint[] = [];
   
   const lines = text.split("\n");
-  let inTimeSeriesSection = false;
-  let inRisingSection = false;
-  let inGeoSection = false;
-  let inKeywordSection = false;
 
-  lines.forEach((line) => {
+  lines.forEach((line, idx) => {
     const trimmed = line.trim();
+    if (!trimmed) return;
     
-    // Detect sections
-    if (/interest over time/i.test(trimmed)) {
-      inTimeSeriesSection = true;
-      inRisingSection = false;
-      inGeoSection = false;
-      inKeywordSection = false;
-      return;
-    }
-    if (/rising queries|breakout/i.test(trimmed)) {
-      inRisingSection = true;
-      inTimeSeriesSection = false;
-      inGeoSection = false;
-      inKeywordSection = false;
-      return;
-    }
-    if (/geographic|geo_data|top regions/i.test(trimmed)) {
-      inGeoSection = true;
-      inTimeSeriesSection = false;
-      inRisingSection = false;
-      inKeywordSection = false;
-      return;
-    }
-    if (/hashtag|keyword strategy|seo keywords/i.test(trimmed)) {
-      inKeywordSection = true;
-      inTimeSeriesSection = false;
-      inRisingSection = false;
-      inGeoSection = false;
-      return;
+    // Parse time series data - multiple formats
+    // Format 1: "2025-01: 75%" or "Jan 2025: 75%"
+    const tsMatch = trimmed.match(/(\d{4}-\d{2}[-\d]*|\w{3,9}\s+\d{4}).*?[:\s](\d+)%/);
+    if (tsMatch && timeSeriesData.length < 12) {
+      timeSeriesData.push({
+        date: tsMatch[1].replace(/\s+/g, " "),
+        value: parseInt(tsMatch[2]),
+      });
     }
     
-    // Parse time series: "2025-01: 75%"
-    if (inTimeSeriesSection) {
-      const tsMatch = trimmed.match(/(\d{4}-\d{2}|\w+ \d{4}).*?(\d+)%/);
-      if (tsMatch && timeSeriesData.length < 12) {
-        timeSeriesData.push({
-          date: tsMatch[1],
-          value: parseInt(tsMatch[2]),
-        });
+    // Parse rising queries - very flexible matching
+    // Formats: "AI marketing - Growth: +350%", "1. "keyword" +250%", ""query" - Breakout"
+    const risingPatterns = [
+      /["']([^"']+)["'].*?(?:Growth|growth|:)\s*([+\d]+%|Breakout|BREAKOUT)/i,
+      /["']([^"']+)["'].*?([+\d]+%|Breakout|BREAKOUT)/i,
+      /^\d+\.\s*["']?([^"'\n:]+)["']?.*?([+\d]+%|Breakout|BREAKOUT)/i,
+    ];
+    
+    for (const pattern of risingPatterns) {
+      const match = trimmed.match(pattern);
+      if (match && risingQueries.length < 10) {
+        const query = match[1].trim();
+        const growth = match[2];
+        if (query.length > 2 && !risingQueries.find(q => q.text === query)) {
+          risingQueries.push({
+            text: query,
+            value: 100,
+            growth: growth,
+            isRising: true,
+          });
+          break;
+        }
       }
     }
     
-    // Parse rising queries: "1. "AI marketing" - Growth: +350%"
-    if (inRisingSection) {
-      const risingMatch = trimmed.match(/["']([^"']+)["'].*?(?:Growth:|:)\s*([+\d]+%|Breakout)/i);
-      if (risingMatch && risingQueries.length < 8) {
-        risingQueries.push({
-          text: risingMatch[1],
-          value: 100,
-          growth: risingMatch[2],
-          isRising: true,
-        });
+    // Parse geographic data - multiple formats
+    // "1. United States: 100%", "United States - 100%", "US: 85%"
+    const geoPatterns = [
+      /^\d+\.\s*([^:\-]+)[\:\-]\s*(\d+)%/,
+      /^([A-Z][a-zA-Z\s]+)[\:\-]\s*(\d+)%/,
+    ];
+    
+    for (const pattern of geoPatterns) {
+      const match = trimmed.match(pattern);
+      if (match && geoData.length < 10) {
+        const location = match[1].trim();
+        const value = parseInt(match[2]);
+        if (location.length > 2 && !geoData.find(g => g.location === location)) {
+          geoData.push({
+            location,
+            value,
+            rank: geoData.length + 1,
+          });
+          break;
+        }
       }
     }
     
-    // Parse geo data: "1. United States: 100%"
-    if (inGeoSection) {
-      const geoMatch = trimmed.match(/\d+\.\s*([^:]+):\s*(\d+)%/);
-      if (geoMatch && geoData.length < 10) {
-        geoData.push({
-          location: geoMatch[1].trim(),
-          value: parseInt(geoMatch[2]),
-          rank: geoData.length + 1,
-        });
-      }
-    }
-    
-    // Parse keywords/hashtags
-    if (inKeywordSection) {
-      const hashMatch = trimmed.match(/#(\w+)/);
-      if (hashMatch && keywords.length < 20) {
+    // Parse hashtags anywhere in text
+    const hashMatches = trimmed.matchAll(/#(\w{3,})/g);
+    for (const match of hashMatches) {
+      if (keywords.length >= 30) break;
+      const tag = match[1];
+      if (!keywords.find(k => k.text === tag)) {
         keywords.push({
-          text: hashMatch[1],
+          text: tag,
           value: Math.floor(Math.random() * 50) + 50,
         });
       }
-      
-      // Also match quoted keywords
-      const keyMatch = trimmed.match(/["']([^"']+)["']/);
-      if (keyMatch && keywords.length < 20 && !keywords.find(k => k.text === keyMatch[1])) {
+    }
+    
+    // Parse quoted keywords (for SEO keywords section)
+    const quoteMatches = trimmed.matchAll(/["']([^"']{3,30})["']/g);
+    for (const match of quoteMatches) {
+      if (keywords.length >= 30) break;
+      const kw = match[1].trim();
+      if (kw.length > 2 && !keywords.find(k => k.text === kw)) {
         keywords.push({
-          text: keyMatch[1],
+          text: kw,
           value: Math.floor(Math.random() * 50) + 50,
         });
       }

@@ -265,7 +265,7 @@ export default function CampaignOutput({ campaign, activeTab, onTabChange, onRef
       )}
 
       {/* Content */}
-      <div className="p-5 overflow-y-auto max-h-[600px]">
+      <div className="p-5">
         {effectiveContent && (
           <div className="anim-fade-up" key={effectiveTab}>
             {/* Show visual analytics for trends tab */}
