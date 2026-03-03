@@ -9,7 +9,7 @@ import {
   ClipboardCheck, Clipboard, RefreshCw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import TrendsChart from "./TrendsChart";
+import TrendsAnalytics from "./TrendsAnalytics";
 
 interface Props {
   campaign: CampaignData | null;
@@ -268,8 +268,8 @@ export default function CampaignOutput({ campaign, activeTab, onTabChange, onRef
       <div className="p-5 overflow-y-auto max-h-[600px]">
         {effectiveContent && (
           <div className="anim-fade-up" key={effectiveTab}>
-            {/* Show charts for trends tab */}
-            {effectiveTab === "trends" && <TrendsChart trendsText={effectiveContent} />}
+            {/* Show visual analytics for trends tab */}
+            {effectiveTab === "trends" && <TrendsAnalytics trendsText={effectiveContent} />}
             
             {/* Markdown content */}
             <Md text={effectiveContent} />
