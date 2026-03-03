@@ -76,13 +76,9 @@ function Md({ text }: { text: string }) {
         ol: ({ children }) => (
           <ol className="space-y-0.5 mb-3">{children}</ol>
         ),
-        li: ({ children, ordered }) => (
+        li: ({ children }) => (
           <div className="flex gap-2.5 ml-1">
-            {ordered ? (
-              <span className="text-[11px] font-semibold text-brand min-w-[18px] mt-[1px]">•</span>
-            ) : (
-              <span className="mt-[7px] w-1 h-1 rounded-full bg-brand/40 flex-shrink-0" />
-            )}
+            <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-brand/40 flex-shrink-0" />
             <div className="text-[12.5px] text-tx-2 leading-relaxed">{children}</div>
           </div>
         ),
@@ -192,12 +188,17 @@ export default function CampaignOutput({ campaign, activeTab, onTabChange, onRef
   const [showRefineFor, setShowRefineFor] = useState<string | null>(null);
 
   if (!campaign) return null;
-  const hasAny = campaign.research || campaign.trends || campaign.content || campaign.strategy || campaign.report;
+  const hasAny = !!(campaign.research || campaign.trends || campaign.content || campaign.strategy || campaign.report);
   if (!hasAny) return null;
 
-  const content = campaign[activeTab as keyof CampaignData];
-  const effectiveTab = content ? activeTab : TABS.find((t) => !!campaign[t.id as keyof CampaignData])?.id || activeTab;
-  const effectiveContent = content || campaign[effectiveTab as keyof CampaignData];
+  const getString = (key: string): string | undefined => {
+    const val = campaign[key as keyof CampaignData];
+    return typeof val === "string" ? val : undefined;
+  };
+
+  const content = getString(activeTab);
+  const effectiveTab = content ? activeTab : TABS.find((t) => !!getString(t.id))?.id || activeTab;
+  const effectiveContent = content || getString(effectiveTab);
   const activeTabDef = TABS.find((t) => t.id === (content ? activeTab : effectiveTab));
 
   const handleRefineSubmit = () => {
@@ -212,7 +213,7 @@ export default function CampaignOutput({ campaign, activeTab, onTabChange, onRef
       {/* Tab bar */}
       <div className="flex items-center border-b border-edge overflow-x-auto">
         {TABS.map((tab) => {
-          const hasData = !!campaign[tab.id as keyof CampaignData];
+          const hasData = !!getString(tab.id);
           const isActive = (content ? activeTab : effectiveTab) === tab.id;
           const TabIcon = tab.icon;
           return (
