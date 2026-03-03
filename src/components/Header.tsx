@@ -35,7 +35,7 @@ export default function Header({ phase, onOpenKB, hasCustomModel }: Props) {
             <Layers className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
           <span className="text-[15px] font-semibold text-tx-0 tracking-tight">
-            Campaign<span className="text-brand">Forge</span>
+            Botten<span className="text-brand">gram</span>
           </span>
         </div>
 

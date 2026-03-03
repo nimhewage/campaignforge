@@ -478,7 +478,7 @@ export default function Home() {
       )}
 
       <footer className="mt-auto py-5 text-center text-[11px] text-tx-4">
-        CampaignForge &middot; Multi-Agent AI Engine &middot; Powered by Mistral &amp; GetAiReady
+        Bottengram &middot; Multi-Agent AI Engine &middot; Powered by Mistral &amp; GetAiReady
       </footer>
     </div>
   );
