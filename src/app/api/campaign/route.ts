@@ -47,11 +47,14 @@ async function callMistral(opts: {
   enc: TextEncoder;
   tools?: Record<string, unknown>[];
   jsonMode?: boolean;
+  customModelId?: string;
 }): Promise<string> {
-  const { system, user, model, agentId, ctrl, enc, tools, jsonMode } = opts;
+  const { system, user, model, agentId, ctrl, enc, tools, jsonMode, customModelId } = opts;
+
+  const effectiveModel = customModelId || model;
 
   const body: Record<string, unknown> = {
-    model,
+    model: effectiveModel,
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
@@ -291,7 +294,8 @@ async function runAgent(
   agentId: string,
   userMsg: string,
   ctrl: ReadableStreamDefaultController,
-  enc: TextEncoder
+  enc: TextEncoder,
+  customModelId?: string
 ): Promise<string | null> {
   const agent = EXEC_AGENTS[agentId];
   if (!agent) return null;
@@ -309,6 +313,7 @@ async function runAgent(
       ctrl,
       enc,
       tools: agent.tools,
+      customModelId,
     });
 
     try {
@@ -329,7 +334,7 @@ async function runAgent(
 /*  Action: Plan (Orchestrator only)                                   */
 /* ------------------------------------------------------------------ */
 
-async function handlePlan(brief: string): Promise<Response> {
+async function handlePlan(brief: string, customModelId?: string): Promise<Response> {
   const enc = new TextEncoder();
   const stream = new ReadableStream({
     async start(ctrl) {
@@ -344,6 +349,7 @@ async function handlePlan(brief: string): Promise<Response> {
           ctrl,
           enc,
           jsonMode: true,
+          customModelId,
         });
 
         let plan = null;
@@ -394,7 +400,8 @@ async function handlePlan(brief: string): Promise<Response> {
 async function handleExecute(
   brief: string,
   planRaw: string,
-  userNotes?: string
+  userNotes?: string,
+  customModelId?: string
 ): Promise<Response> {
   const enc = new TextEncoder();
   const stream = new ReadableStream({
@@ -408,10 +415,10 @@ async function handleExecute(
       try { ctrl.enqueue(enc.encode(sse({ type: "phase_start", phase: "research" }))); } catch { /* */ }
 
       const [resOut, trendOut] = await Promise.all([
-        runAgent("researcher", baseContext, ctrl, enc),
+        runAgent("researcher", baseContext, ctrl, enc, customModelId),
         (async () => {
           await wait(1500);
-          return runAgent("trend_analyst", baseContext, ctrl, enc);
+          return runAgent("trend_analyst", baseContext, ctrl, enc, customModelId);
         })(),
       ]);
       if (resOut) outputs.research = resOut;
@@ -428,10 +435,10 @@ async function handleExecute(
       if (outputs.trends) createContext += `\n\nTrend Insights:\n${outputs.trends.slice(0, 2000)}`;
 
       const [contentOut, stratOut] = await Promise.all([
-        runAgent("content_creator", createContext, ctrl, enc),
+        runAgent("content_creator", createContext, ctrl, enc, customModelId),
         (async () => {
           await wait(1500);
-          return runAgent("strategist", createContext, ctrl, enc);
+          return runAgent("strategist", createContext, ctrl, enc, customModelId);
         })(),
       ]);
       if (contentOut) outputs.content = contentOut;
@@ -447,7 +454,7 @@ async function handleExecute(
       if (outputs.content) reportContext += `\n\nCreative Content:\n${outputs.content.slice(0, 1500)}`;
       if (outputs.strategy) reportContext += `\n\nStrategy:\n${outputs.strategy.slice(0, 1500)}`;
 
-      await runAgent("report_generator", reportContext, ctrl, enc);
+      await runAgent("report_generator", reportContext, ctrl, enc, customModelId);
 
       try { ctrl.enqueue(enc.encode(sse({ type: "phase_complete", phase: "report" }))); } catch { /* */ }
       try { ctrl.enqueue(enc.encode(sse({ type: "complete" }))); } catch { /* */ }
@@ -472,8 +479,9 @@ async function handleRefine(body: {
   content?: string;
   strategy?: string;
   currentOutput?: string;
+  customModelId?: string;
 }): Promise<Response> {
-  const { agentId, feedback, brief, planRaw, research, trends, content, strategy, currentOutput } = body;
+  const { agentId, feedback, brief, planRaw, research, trends, content, strategy, currentOutput, customModelId } = body;
   const enc = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -490,7 +498,7 @@ async function handleRefine(body: {
       }
       context += `\n\nUSER REFINEMENT REQUEST:\n${feedback}\n\nPlease regenerate your output incorporating this feedback. Keep the same structure but improve based on the user's request.`;
 
-      await runAgent(agentId, context, ctrl, enc);
+      await runAgent(agentId, context, ctrl, enc, customModelId);
       try { ctrl.enqueue(enc.encode(sse({ type: "complete" }))); } catch { /* */ }
       try { ctrl.close(); } catch { /* */ }
     },
@@ -514,15 +522,15 @@ export async function POST(req: NextRequest) {
 
   switch (action) {
     case "plan": {
-      const { brief } = body;
+      const { brief, customModelId } = body;
       if (!brief || typeof brief !== "string") return Response.json({ error: "Brief required" }, { status: 400 });
-      return handlePlan(brief);
+      return handlePlan(brief, customModelId);
     }
 
     case "execute": {
-      const { brief, planRaw, userNotes } = body;
+      const { brief, planRaw, userNotes, customModelId } = body;
       if (!brief) return Response.json({ error: "Brief required" }, { status: 400 });
-      return handleExecute(brief, planRaw || "", userNotes);
+      return handleExecute(brief, planRaw || "", userNotes, customModelId);
     }
 
     case "refine": {

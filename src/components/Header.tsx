@@ -1,5 +1,5 @@
 import type { Phase } from "@/app/page";
-import { Layers, Wifi, CircleDot } from "lucide-react";
+import { Layers, Wifi, CircleDot, BookOpen, Sparkles } from "lucide-react";
 
 const PHASE_LABELS: Record<Phase, string> = {
   idle: "",
@@ -17,7 +17,13 @@ const PHASE_COLORS: Record<Phase, string> = {
   complete: "text-ok",
 };
 
-export default function Header({ phase }: { phase: Phase }) {
+interface Props {
+  phase: Phase;
+  onOpenKB: () => void;
+  hasCustomModel: boolean;
+}
+
+export default function Header({ phase, onOpenKB, hasCustomModel }: Props) {
   const label = PHASE_LABELS[phase];
   const color = PHASE_COLORS[phase];
 
@@ -33,7 +39,27 @@ export default function Header({ phase }: { phase: Phase }) {
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Knowledge Base pill */}
+          <button
+            onClick={onOpenKB}
+            className={`group flex items-center gap-1.5 text-[11px] font-medium rounded-full px-3 py-1.5 border transition-all cursor-pointer ${
+              hasCustomModel
+                ? "text-ok bg-ok/[0.06] border-ok/20 hover:bg-ok/[0.1] hover:border-ok/30"
+                : "text-tx-3 bg-surface-2/60 border-edge hover:text-brand hover:border-brand/20 hover:bg-brand/[0.04]"
+            }`}
+          >
+            {hasCustomModel ? (
+              <Sparkles className="w-3 h-3 text-ok" />
+            ) : (
+              <BookOpen className="w-3 h-3 group-hover:text-brand transition-colors" />
+            )}
+            <span className="hidden sm:inline">
+              {hasCustomModel ? "Custom Model" : "Knowledge Base"}
+            </span>
+            <span className="sm:hidden">KB</span>
+          </button>
+
           {label && (
             <div className={`flex items-center gap-2 text-[11px] font-medium ${color} bg-surface-2/60 border border-edge rounded-full px-3 py-1.5`}>
               {phase === "plan_review" ? (

@@ -9,6 +9,7 @@ import MaterialGallery from "@/components/MaterialGallery";
 import PlanReview from "@/components/PlanReview";
 import RefinementChat from "@/components/RefinementChat";
 import ExportPanel from "@/components/ExportPanel";
+import KnowledgeBase from "@/components/KnowledgeBase";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -130,6 +131,8 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("research");
   const [isRefining, setIsRefining] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const [kbOpen, setKbOpen] = useState(false);
+  const [customModelId, setCustomModelId] = useState<string | null>(null);
 
   const updateAgent = useCallback((id: string, patch: Partial<AgentState>) => {
     setAgents((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
@@ -211,7 +214,7 @@ export default function Home() {
       const res = await fetch("/api/campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "plan", brief }),
+        body: JSON.stringify({ action: "plan", brief, customModelId }),
         signal: abortRef.current.signal,
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -250,6 +253,7 @@ export default function Home() {
           brief: campaign.brief,
           planRaw,
           userNotes,
+          customModelId,
         }),
         signal: abortRef.current.signal,
       });
@@ -297,6 +301,7 @@ export default function Home() {
           content: campaign.content,
           strategy: campaign.strategy,
           currentOutput: campaign[agentIdToField(agentId) as keyof CampaignData],
+          customModelId,
         }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -328,7 +333,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-0">
-      <Header phase={phase} />
+      <Header phase={phase} onOpenKB={() => setKbOpen(true)} hasCustomModel={!!customModelId} />
+      <KnowledgeBase
+        open={kbOpen}
+        onClose={() => setKbOpen(false)}
+        onModelReady={setCustomModelId}
+        activeModelId={customModelId}
+      />
 
       <section className="border-b border-edge">
         <div className="max-w-5xl mx-auto px-5 py-8 sm:py-10">
