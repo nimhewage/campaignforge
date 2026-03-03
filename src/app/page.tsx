@@ -10,6 +10,7 @@ import PlanReview from "@/components/PlanReview";
 import RefinementChat from "@/components/RefinementChat";
 import ExportPanel from "@/components/ExportPanel";
 import KnowledgeBase from "@/components/KnowledgeBase";
+import AgentNetwork from "@/components/AgentNetwork";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -355,6 +356,12 @@ export default function Home() {
             </div>
           )}
           <PromptInput onSubmit={handleSubmit} onStop={handleStop} isRunning={isRunning} phase={phase} />
+
+          {phase === "idle" && (
+            <div className="anim-fade-up" style={{ animationDelay: "0.15s" }}>
+              <AgentNetwork />
+            </div>
+          )}
         </div>
       </section>
 
@@ -420,7 +427,7 @@ export default function Home() {
       )}
 
       <footer className="mt-auto py-5 text-center text-[11px] text-tx-4">
-        CampaignForge &middot; Multi-Agent AI Engine &middot; Powered by Mistral
+        CampaignForge &middot; Multi-Agent AI Engine &middot; Powered by Mistral &amp; GetAiReady
       </footer>
     </div>
   );
