@@ -180,7 +180,7 @@ async function exportToPptx(slides: SlideData[], campaignName: string) {
   const pptx = new PptxGenJS();
 
   pptx.layout = "LAYOUT_WIDE";
-  pptx.author = "Bottengram";
+  pptx.author = "CampaignForge";
   pptx.subject = campaignName;
 
   const BG = "0F0F1A";
@@ -211,7 +211,7 @@ async function exportToPptx(slides: SlideData[], campaignName: string) {
         fontSize: 16, fontFace: "Helvetica Neue",
         color: TEXT_SECONDARY, align: "left",
       });
-      slide.addText("Bottengram", {
+      slide.addText("CampaignForge", {
         x: 0.8, y: 6.6, w: 4, h: 0.4,
         fontSize: 10, fontFace: "Helvetica Neue",
         color: "6366F1", align: "left",
@@ -394,7 +394,7 @@ export default function StrategySlides({ strategyText, campaignName }: Props) {
               </h1>
               <SlideMarkdown text={slide.body} />
               <div className="mt-auto pt-8">
-                <p className="text-[11px] text-white/30 font-mono tracking-wider">BOTTENGRAM</p>
+                <p className="text-[11px] text-white/30 font-mono tracking-wider">CAMPAIGNFORGE</p>
               </div>
             </div>
           ) : (

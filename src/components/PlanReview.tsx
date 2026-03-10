@@ -148,7 +148,7 @@ export default function PlanReview({ plan, onApprove }: Props) {
                 />
                 <button
                   onClick={addObjective}
-                  className="flex items-center gap-1 px-3 py-2 rounded-lg border border-dashed border-edge text-[11px] text-tx-3 hover:text-brand hover:border-brand/30 transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-3 py-2 rounded-lg border border-dashed border-edge text-[11px] text-tx-2 hover:text-brand hover:border-brand/30 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3 h-3" /> Add
                 </button>
@@ -223,7 +223,7 @@ export default function PlanReview({ plan, onApprove }: Props) {
 
         {/* User direction */}
         <div className="pt-3 border-t border-edge">
-          <label className="block text-[11px] font-medium text-tx-3 uppercase tracking-widest mb-2">
+          <label className="block text-[11px] font-medium text-tx-2 uppercase tracking-widest mb-2">
             Your Direction (optional)
           </label>
           <textarea
@@ -268,7 +268,7 @@ function Section({
       <div className="flex items-center gap-2 mb-2">
         <Icon className="w-3.5 h-3.5 text-tx-3" />
         <h3 className="text-[12px] font-semibold text-tx-1 uppercase tracking-wide">{title}</h3>
-        {subtitle && <span className="text-[10px] text-tx-4 ml-1">{subtitle}</span>}
+        {subtitle && <span className="text-[10px] text-tx-3 ml-1">{subtitle}</span>}
       </div>
       {children}
     </div>
@@ -278,7 +278,7 @@ function Section({
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface-2/50 border border-edge rounded-lg px-3 py-2">
-      <p className="text-[9px] font-medium text-tx-4 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-[9px] font-medium text-tx-3 uppercase tracking-wider mb-0.5">{label}</p>
       <p className="text-[12px] text-tx-1 leading-snug">{value}</p>
     </div>
   );

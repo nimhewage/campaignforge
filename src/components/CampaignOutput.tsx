@@ -6,11 +6,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Search, TrendingUp, PenLine, Target, FileText,
-  ClipboardCheck, Clipboard, RefreshCw,
+  ClipboardCheck, Clipboard, RefreshCw, Users, Mail, Layout,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import TrendsAnalytics from "./TrendsAnalytics";
 import StrategySlides from "./StrategySlides";
+import PersonaCards from "./PersonaCards";
 
 interface Props {
   campaign: CampaignData | null;
@@ -33,6 +34,9 @@ const TABS: TabDef[] = [
   { id: "content", label: "Content", icon: PenLine, agentId: "content_creator" },
   { id: "strategy", label: "Strategy", icon: Target, agentId: "strategist" },
   { id: "report", label: "Report", icon: FileText, agentId: "report_generator" },
+  { id: "personas", label: "Personas", icon: Users, agentId: "persona_builder" },
+  { id: "emailSequence", label: "Email Seq.", icon: Mail, agentId: "email_strategist" },
+  { id: "landingPage", label: "Landing Page", icon: Layout, agentId: "landing_page" },
 ];
 
 /* ---- Markdown renderer with react-markdown ---- */
@@ -68,7 +72,7 @@ function Md({ text }: { text: string }) {
           <h4 className="text-[12px] font-semibold text-tx-1 mt-4 mb-1">{children}</h4>
         ),
         p: ({ children }) => (
-          <p className="text-[12.5px] text-tx-2 leading-relaxed mb-3">{children}</p>
+          <p className="text-[13px] text-tx-1 leading-relaxed mb-3">{children}</p>
         ),
         ul: ({ children }) => (
           <ul className="space-y-0.5 mb-3">{children}</ul>
@@ -78,8 +82,8 @@ function Md({ text }: { text: string }) {
         ),
         li: ({ children }) => (
           <div className="flex gap-2.5 ml-1">
-            <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-brand/40 flex-shrink-0" />
-            <div className="text-[12.5px] text-tx-2 leading-relaxed">{children}</div>
+            <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-brand/60 flex-shrink-0" />
+            <div className="text-[13px] text-tx-1 leading-relaxed">{children}</div>
           </div>
         ),
         strong: ({ children }) => (
@@ -131,7 +135,7 @@ function Md({ text }: { text: string }) {
           <hr className="border-edge my-5" />
         ),
         blockquote: ({ children }) => (
-          <blockquote className="border-l-2 border-brand/30 pl-4 my-3 text-tx-3 italic">
+          <blockquote className="border-l-2 border-brand/50 pl-4 my-3 text-tx-2 italic">
             {children}
           </blockquote>
         ),
@@ -270,16 +274,21 @@ export default function CampaignOutput({ campaign, activeTab, onTabChange, onRef
       <div className="p-5">
         {effectiveContent && (
           <div className="anim-fade-up" key={effectiveTab}>
-            {/* Show visual analytics for trends tab */}
+            {/* Trends — visual analytics only */}
             {effectiveTab === "trends" && <TrendsAnalytics trendsText={effectiveContent} />}
 
-            {/* Show presentation slides for strategy tab */}
+            {/* Strategy — presentation slides only */}
             {effectiveTab === "strategy" && campaign && (
               <StrategySlides strategyText={effectiveContent} campaignName={campaign.brief} />
             )}
-            
-            {/* Markdown content */}
-            <Md text={effectiveContent} />
+
+            {/* Personas — card grid (falls back to Md inside PersonaCards if JSON fails) */}
+            {effectiveTab === "personas" && <PersonaCards text={effectiveContent} />}
+
+            {/* All other tabs — rendered markdown */}
+            {!["trends", "strategy", "personas"].includes(effectiveTab) && (
+              <Md text={effectiveContent} />
+            )}
           </div>
         )}
       </div>

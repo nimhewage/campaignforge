@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 
+export const maxDuration = 120;
+
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 
 /* ------------------------------------------------------------------ */
@@ -15,7 +17,7 @@ interface PredictionResponse {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Replicate API - Official Models Endpoint                           */
+/*  Replicate API                                                      */
 /* ------------------------------------------------------------------ */
 
 async function createModelPrediction(
@@ -23,9 +25,7 @@ async function createModelPrediction(
   model: string,
   input: Record<string, unknown>
 ): Promise<PredictionResponse> {
-  const url = `https://api.replicate.com/v1/models/${owner}/${model}/predictions`;
-
-  const res = await fetch(url, {
+  const res = await fetch(`https://api.replicate.com/v1/models/${owner}/${model}/predictions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -35,11 +35,7 @@ async function createModelPrediction(
     body: JSON.stringify({ input }),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Replicate error (${res.status}): ${err}`);
-  }
-
+  if (!res.ok) throw new Error(`Replicate error (${res.status}): ${await res.text()}`);
   return res.json();
 }
 
@@ -47,20 +43,15 @@ async function getPrediction(id: string): Promise<PredictionResponse> {
   const res = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
     headers: { Authorization: `Token ${REPLICATE_API_TOKEN}` },
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Prediction status error: ${err}`);
-  }
-
+  if (!res.ok) throw new Error(`Prediction status error: ${await res.text()}`);
   return res.json();
 }
 
 /* ------------------------------------------------------------------ */
-/*  Generate image using Flux Schnell                                  */
+/*  Image generation                                                   */
 /* ------------------------------------------------------------------ */
 
-async function generateImage(prompt: string, aspectRatio: string = "16:9"): Promise<string> {
+async function generateImage(prompt: string, aspectRatio = "16:9"): Promise<string> {
   let prediction = await createModelPrediction("black-forest-labs", "flux-schnell", {
     prompt,
     aspect_ratio: aspectRatio,
@@ -69,26 +60,24 @@ async function generateImage(prompt: string, aspectRatio: string = "16:9"): Prom
     output_quality: 90,
   });
 
-  // If not finished yet (Prefer: wait should handle most cases), poll
+  // Poll up to 20 attempts × 2s = 40s (safely within maxDuration)
   let attempts = 0;
-  while (prediction.status !== "succeeded" && prediction.status !== "failed" && attempts < 60) {
+  while (prediction.status !== "succeeded" && prediction.status !== "failed" && attempts < 20) {
     await new Promise((r) => setTimeout(r, 2000));
     prediction = await getPrediction(prediction.id);
     attempts++;
   }
 
-  if (prediction.status === "failed") {
-    throw new Error(prediction.error || "Image generation failed");
-  }
-
+  if (prediction.status === "failed") throw new Error(prediction.error || "Image generation failed");
   if (!prediction.output) throw new Error("No output from image generation");
 
-  const output = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
-  return output;
+  return Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Generate video using Minimax                                       */
+/*  Video generation — capped at 12 attempts × 5s = 60s               */
+/*  Videos often won't complete within serverless timeout;             */
+/*  we return a partial error rather than hanging forever.             */
 /* ------------------------------------------------------------------ */
 
 async function generateVideo(prompt: string): Promise<string> {
@@ -97,22 +86,20 @@ async function generateVideo(prompt: string): Promise<string> {
     prompt_optimizer: true,
   });
 
-  // Videos take longer - poll until complete
   let attempts = 0;
-  while (prediction.status !== "succeeded" && prediction.status !== "failed" && attempts < 120) {
+  while (prediction.status !== "succeeded" && prediction.status !== "failed" && attempts < 12) {
     await new Promise((r) => setTimeout(r, 5000));
     prediction = await getPrediction(prediction.id);
     attempts++;
   }
 
-  if (prediction.status === "failed") {
-    throw new Error(prediction.error || "Video generation failed");
+  if (prediction.status === "failed") throw new Error(prediction.error || "Video generation failed");
+  if (!prediction.output) {
+    // Timed out — return the prediction ID so the client could poll if needed
+    throw new Error(`Video still processing (id: ${prediction.id}). Videos can take 2-5 minutes. Try the direct link: https://replicate.com/p/${prediction.id}`);
   }
 
-  if (!prediction.output) throw new Error("No output from video generation");
-
-  const output = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
-  return output;
+  return Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
 }
 
 /* ------------------------------------------------------------------ */
@@ -127,10 +114,8 @@ interface VisualPrompts {
 function extractVisualPrompts(content: string, campaignName: string): VisualPrompts {
   const images: VisualPrompts["images"] = [];
   const videos: VisualPrompts["videos"] = [];
-
   const name = campaignName.split("\n")[0].slice(0, 80);
 
-  // Hero banner from headlines
   const headlineMatch = content.match(/##\s*Campaign Headlines([\s\S]*?)(?=##|$)/i);
   if (headlineMatch) {
     const headlines = headlineMatch[1]
@@ -138,7 +123,6 @@ function extractVisualPrompts(content: string, campaignName: string): VisualProm
       .filter((l) => /^\d+\./.test(l.trim()))
       .map((l) => l.replace(/^\d+\.\s*/, "").replace(/\*\*/g, "").trim())
       .filter(Boolean);
-
     if (headlines[0]) {
       images.push({
         type: "Hero Banner",
@@ -148,7 +132,6 @@ function extractVisualPrompts(content: string, campaignName: string): VisualProm
     }
   }
 
-  // Instagram post
   const instaMatch = content.match(/##\s*Instagram Posts?([\s\S]*?)(?=##|$)/i);
   if (instaMatch) {
     const caption = instaMatch[1].slice(0, 200).replace(/[#*_`\n]/g, " ").trim();
@@ -159,7 +142,6 @@ function extractVisualPrompts(content: string, campaignName: string): VisualProm
     });
   }
 
-  // LinkedIn professional
   const linkedinMatch = content.match(/##\s*LinkedIn Posts?([\s\S]*?)(?=##|$)/i);
   if (linkedinMatch) {
     images.push({
@@ -169,21 +151,18 @@ function extractVisualPrompts(content: string, campaignName: string): VisualProm
     });
   }
 
-  // Brand showcase
   images.push({
     type: "Brand Showcase",
     prompt: `High-end product photography for ${name}. Premium feel, professional studio lighting, clean background, marketing quality, commercial photography`,
     aspectRatio: "4:3",
   });
 
-  // Carousel slide
   images.push({
     type: "Carousel Slide",
     prompt: `Social media carousel slide design for ${name}. Bold typography, modern gradient background, clean layout, Instagram-ready, professional design`,
     aspectRatio: "1:1",
   });
 
-  // TikTok/Reels video
   const tiktokMatch = content.match(/##\s*TikTok Concepts?([\s\S]*?)(?=##|$)/i);
   if (tiktokMatch) {
     const lines = tiktokMatch[1].split(/\n/).filter((l) => l.trim().length > 30);
@@ -231,7 +210,7 @@ export async function POST(req: NextRequest) {
           }
         });
 
-        // Generate videos (limit to 1 for cost)
+        // Generate 1 video max (cost + time constraint)
         const videoPromises = prompts.videos.slice(0, 1).map(async (vid) => {
           try {
             const url = await generateVideo(vid.prompt);
@@ -252,8 +231,7 @@ export async function POST(req: NextRequest) {
           totalGenerated: images.filter((i) => i.url).length + videos.filter((v) => v.url).length,
         });
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Visual generation failed";
-        return Response.json({ error: msg }, { status: 500 });
+        return Response.json({ error: err instanceof Error ? err.message : "Visual generation failed" }, { status: 500 });
       }
     }
 
@@ -264,19 +242,12 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        let url: string;
-        if (type === "image") {
-          url = await generateImage(prompt, aspectRatio || "16:9");
-        } else if (type === "video") {
-          url = await generateVideo(prompt);
-        } else {
-          return Response.json({ error: "Invalid type. Use: image, video" }, { status: 400 });
-        }
-
+        const url = type === "video"
+          ? await generateVideo(prompt)
+          : await generateImage(prompt, aspectRatio || "16:9");
         return Response.json({ success: true, url, type });
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Generation failed";
-        return Response.json({ error: msg }, { status: 500 });
+        return Response.json({ error: err instanceof Error ? err.message : "Generation failed" }, { status: 500 });
       }
     }
 

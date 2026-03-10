@@ -4,13 +4,15 @@ import type { AgentState, Phase } from "@/app/page";
 import { useState, useEffect, useRef } from "react";
 import {
   Brain, Search, TrendingUp, PenLine, Target, FileText,
-  Loader2, Check, AlertTriangle, Globe,
+  Loader2, Check, AlertTriangle, Globe, Users, Mail, Layout,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { stripMd } from "@/lib/stripMd";
 
 const ICONS: Record<string, LucideIcon> = {
   orchestrator: Brain, researcher: Search, trend_analyst: TrendingUp,
   content_creator: PenLine, strategist: Target, report_generator: FileText,
+  persona_builder: Users, email_strategist: Mail, landing_page: Layout,
 };
 const META: Record<string, { desc: string; model: string }> = {
   orchestrator: { desc: "Brief analysis & workflow planning", model: "mistral-small" },
@@ -19,6 +21,9 @@ const META: Record<string, { desc: string; model: string }> = {
   content_creator: { desc: "Copy, posts & ad creative", model: "mistral-large" },
   strategist: { desc: "Channel mix, timeline & budget", model: "mistral-large" },
   report_generator: { desc: "Executive brief & scorecard", model: "mistral-large" },
+  persona_builder: { desc: "Audience personas & psychographics", model: "mistral-large" },
+  email_strategist: { desc: "5-email drip sequence", model: "mistral-large" },
+  landing_page: { desc: "CRO landing page brief", model: "mistral-large" },
 };
 
 /* ---- Utilities ---- */
@@ -44,7 +49,10 @@ function CoTTerminal({ text, toolEvents }: { text: string; toolEvents?: { tool: 
 
   if (!hasText && !hasTools) return null;
 
-  const lines = text ? text.split("\n").filter((l) => l.trim()).slice(-6) : [];
+  const stripMd = (s: string) =>
+    s.replace(/^#+\s*/gm, "").replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+     .replace(/`([^`]+)`/g, "$1").replace(/^[-*>|]\s*/gm, "").replace(/__([^_]+)__/g, "$1").trim();
+  const lines = text ? text.split("\n").filter((l) => l.trim()).slice(-6).map(stripMd).filter(Boolean) : [];
 
   return (
     <div ref={ref} className="mt-2 bg-surface-0/80 border border-edge rounded-lg p-2.5 max-h-[100px] overflow-y-auto">
@@ -57,7 +65,7 @@ function CoTTerminal({ text, toolEvents }: { text: string; toolEvents?: { tool: 
         </div>
       ))}
       {lines.map((line, i) => (
-        <p key={i} className="text-[10px] font-mono text-tx-3/60 leading-[1.6] break-words">{line}</p>
+        <p key={i} className="text-[10px] font-mono text-tx-2/60 leading-[1.6] break-words">{line}</p>
       ))}
       <span className="inline-block w-[6px] h-[12px] bg-brand/50 animate-pulse ml-0.5" />
     </div>
@@ -66,7 +74,7 @@ function CoTTerminal({ text, toolEvents }: { text: string; toolEvents?: { tool: 
 
 function snippet(output?: string) {
   if (!output) return "";
-  return output.replace(/^#+\s.*$/gm, "").replace(/\*\*/g, "").replace(/[`*_~#>|-]/g, "").replace(/\n+/g, " ").trim().slice(0, 120);
+  return stripMd(output).replace(/\n+/g, " ").slice(0, 120);
 }
 
 /* ---- SVG Flow Connector ---- */
@@ -175,19 +183,19 @@ function AgentCard({ agent, anyRunning }: { agent: AgentState; anyRunning: boole
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <p className={`text-[12px] font-semibold leading-tight truncate ${isRunning || isDone ? "text-tx-0" : "text-tx-3"}`}>
+              <p className={`text-[12px] font-semibold leading-tight truncate ${isRunning || isDone ? "text-tx-0" : "text-tx-2"}`}>
                 {agent.name}
               </p>
               {isRunning && agent.startedAt && (
-                <span className="text-[10px] text-brand/50 tabular-nums font-mono flex-shrink-0">
+                <span className="text-[10px] text-brand tabular-nums font-mono flex-shrink-0">
                   <LiveTimer startedAt={agent.startedAt} />
                 </span>
               )}
               {isDone && dur && (
-                <span className="text-[10px] text-ok/40 tabular-nums font-mono flex-shrink-0">{dur}</span>
+                <span className="text-[10px] text-ok/70 tabular-nums font-mono flex-shrink-0">{dur}</span>
               )}
             </div>
-            <p className="text-[10px] text-tx-4 mt-0.5 truncate">
+            <p className="text-[10px] text-tx-3 mt-0.5 truncate">
               {isQueued ? "Queued" : isRunning ? (hasToolEvents ? "Searching live data..." : meta.model) : isDone ? `${agent.completedSteps.length} steps` : meta.desc}
             </p>
           </div>
@@ -198,13 +206,13 @@ function AgentCard({ agent, anyRunning }: { agent: AgentState; anyRunning: boole
             {agent.completedSteps.map((step, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <Check className="w-2.5 h-2.5 text-ok/40 flex-shrink-0" strokeWidth={2.5} />
-                <span className="text-[10px] text-tx-3/70">{step}</span>
+                <span className="text-[10px] text-tx-2/70">{stripMd(step)}</span>
               </div>
             ))}
             {agent.currentStep && (
               <div className="flex items-center gap-1.5">
                 <Loader2 className="w-2.5 h-2.5 text-brand/50 animate-spin flex-shrink-0" />
-                <span className="text-[10px] text-brand/60">{agent.currentStep}</span>
+                <span className="text-[10px] text-brand/60">{stripMd(agent.currentStep)}</span>
               </div>
             )}
             <CoTTerminal text={agent.streamingText || ""} toolEvents={agent.toolEvents} />
@@ -212,10 +220,10 @@ function AgentCard({ agent, anyRunning }: { agent: AgentState; anyRunning: boole
         )}
 
         {isDone && agent.output && (
-          <p className="mt-2 pl-[42px] text-[10px] text-tx-3/50 leading-relaxed line-clamp-2">{snippet(agent.output)}</p>
+          <p className="mt-2 pl-[42px] text-[10px] text-tx-3 leading-relaxed line-clamp-2">{snippet(agent.output)}</p>
         )}
-        {isIdle && !isQueued && <p className="mt-1 pl-[42px] text-[10px] text-tx-4/60">{meta.desc}</p>}
-        {isError && agent.currentStep && <p className="mt-2 pl-[42px] text-[10px] text-fail/60">{agent.currentStep}</p>}
+        {isIdle && !isQueued && <p className="mt-1 pl-[42px] text-[10px] text-tx-3">{meta.desc}</p>}
+        {isError && agent.currentStep && <p className="mt-2 pl-[42px] text-[10px] text-fail/60">{stripMd(agent.currentStep)}</p>}
       </div>
     </div>
   );
@@ -235,6 +243,9 @@ export default function AgentGrid({ agents, phase }: { agents: AgentState[]; pha
   const trend = byId("trend_analyst");
   const cont = byId("content_creator");
   const strat = byId("strategist");
+  const persona = byId("persona_builder");
+  const email = byId("email_strategist");
+  const landing = byId("landing_page");
   const report = byId("report_generator");
 
   // During plan_review, only show orchestrator as complete
@@ -276,13 +287,24 @@ export default function AgentGrid({ agents, phase }: { agents: AgentState[]; pha
 
       <FlowConnector type="through" status={connStatus([res, trend], [cont, strat])} />
 
-      {/* Phase 3: Content + Strategy */}
+      {/* Phase 3a: Content + Strategy */}
       <div className="flex gap-3 w-full max-w-[640px]">
         <div className="flex-1"><AgentCard agent={cont} anyRunning={anyRunning} /></div>
         <div className="flex-1"><AgentCard agent={strat} anyRunning={anyRunning} /></div>
       </div>
 
-      <FlowConnector type="merge" status={connStatus([cont, strat], [report])} />
+      {/* Phase 3b: Specialist agents */}
+      {(persona || email || landing) && (persona.status !== "idle" || email.status !== "idle" || landing.status !== "idle") && (
+        <>
+          <div className="flex gap-3 w-full max-w-[640px] mt-3">
+            {persona && <div className="flex-1"><AgentCard agent={persona} anyRunning={anyRunning} /></div>}
+            {email && <div className="flex-1"><AgentCard agent={email} anyRunning={anyRunning} /></div>}
+            {landing && <div className="flex-1"><AgentCard agent={landing} anyRunning={anyRunning} /></div>}
+          </div>
+        </>
+      )}
+
+      <FlowConnector type="merge" status={connStatus([cont, strat, ...[persona, email, landing].filter((a): a is AgentState => !!a)], [report])} />
 
       {/* Phase 4: Report */}
       <div className="w-full max-w-sm">

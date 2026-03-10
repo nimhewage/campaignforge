@@ -71,7 +71,7 @@ export default function RefinementChat({ onRefine, isRefining, availableAgents }
               key={action.label}
               onClick={() => handleQuickAction(action)}
               disabled={isRefining}
-              className="text-[11px] px-3 py-1.5 rounded-full border border-edge text-tx-3 bg-surface-2/40 hover:bg-surface-3 hover:text-tx-1 hover:border-edge-b transition-all disabled:opacity-30 cursor-pointer"
+              className="text-[11px] px-3 py-1.5 rounded-full border border-edge text-tx-2 bg-surface-2/40 hover:bg-surface-3 hover:text-tx-1 hover:border-edge-b transition-all disabled:opacity-30 cursor-pointer"
             >
               {action.label}
             </button>

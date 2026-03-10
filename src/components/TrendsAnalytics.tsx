@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { stripMd } from "@/lib/stripMd";
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -162,7 +163,7 @@ function KeywordCloud({ keywords }: { keywords: KeywordData[] }) {
             className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-brand/20 text-tx-1 font-medium hover:border-brand/40 hover:scale-105 transition-all cursor-default`}
           >
             {kw.isRising && <Flame className="inline w-3 h-3 text-orange-400 mr-1" />}
-            {kw.text}
+            {stripMd(kw.text)}
           </div>
         );
       })}
@@ -193,10 +194,10 @@ function RisingQueriesShowcase({ queries }: { queries: KeywordData[] }) {
                 <div className="flex items-center gap-2 mb-1">
                   <Search className="w-3.5 h-3.5 text-brand flex-shrink-0" />
                   <p className="text-[13px] font-semibold text-tx-0 truncate">
-                    {q.text}
+                    {stripMd(q.text)}
                   </p>
                 </div>
-                <p className="text-[10px] text-tx-4 uppercase tracking-widest">
+                <p className="text-[11px] text-tx-2 uppercase tracking-widest">
                   Rising Query
                 </p>
               </div>
@@ -252,7 +253,7 @@ function GeographicHeatmap({ geoData }: { geoData: GeoData[] }) {
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-brand w-5">#{geo.rank}</span>
-                <MapPin className="w-3 h-3 text-tx-3" />
+                <MapPin className="w-3 h-3 text-tx-2" />
                 <span className="text-[12px] font-medium text-tx-1">{geo.location}</span>
               </div>
               <span className="text-[12px] font-bold text-brand">{geo.value}%</span>
@@ -281,10 +282,22 @@ function GeographicHeatmap({ geoData }: { geoData: GeoData[] }) {
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
 
+// Detect if the trends output mentions simulated/fallback data
+function isSimulatedData(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("simulated data") ||
+    lower.includes("serpapi_key") ||
+    lower.includes("add serpapi") ||
+    lower.includes("simulated —")
+  );
+}
+
 export default function TrendsAnalytics({ trendsText }: Props) {
   const data = useMemo(() => extractTrendsData(trendsText), [trendsText]);
   const [activeMetric, setActiveMetric] = useState<"interest" | "growth">("interest");
-  
+  const simulated = useMemo(() => isSimulatedData(trendsText), [trendsText]);
+
   const hasTimeSeries = data.timeSeriesData.length > 0;
   const hasRising = data.risingQueries.length > 0;
   const hasGeo = data.geoData.length > 0;
@@ -305,13 +318,33 @@ export default function TrendsAnalytics({ trendsText }: Props) {
 
   return (
     <div className="space-y-5 mb-6">
+      {/* Simulated data warning banner */}
+      {simulated && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06]">
+          <span className="text-amber-400 text-[16px] leading-none mt-0.5">!</span>
+          <div>
+            <p className="text-[12px] font-semibold text-amber-300">Simulated trend data</p>
+            <p className="text-[11px] text-amber-400/80 mt-0.5">
+              Charts below use placeholder data. Add{" "}
+              <code className="font-mono bg-amber-500/10 px-1 rounded">SERPAPI_KEY</code> to{" "}
+              <code className="font-mono bg-amber-500/10 px-1 rounded">.env.local</code>{" "}
+              for real Google Trends (free at{" "}
+              <a href="https://serpapi.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-300">
+                serpapi.com
+              </a>
+              ).
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Trend Direction */}
         <div className="glass-card p-4 anim-fade-up">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-tx-4 uppercase tracking-widest mb-1">
+              <p className="text-[11px] text-tx-2 uppercase tracking-widest mb-1">
                 Trend Direction
               </p>
               <p className="text-[20px] font-bold text-tx-0 flex items-center gap-2">
@@ -345,7 +378,7 @@ export default function TrendsAnalytics({ trendsText }: Props) {
         <div className="glass-card p-4 anim-fade-up" style={{ animationDelay: "0.05s" }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-tx-4 uppercase tracking-widest mb-1">
+              <p className="text-[11px] text-tx-2 uppercase tracking-widest mb-1">
                 Breakout Keywords
               </p>
               <p className="text-[20px] font-bold text-tx-0">
@@ -362,7 +395,7 @@ export default function TrendsAnalytics({ trendsText }: Props) {
         <div className="glass-card p-4 anim-fade-up" style={{ animationDelay: "0.1s" }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-tx-4 uppercase tracking-widest mb-1">
+              <p className="text-[11px] text-tx-2 uppercase tracking-widest mb-1">
                 Top Markets
               </p>
               <p className="text-[20px] font-bold text-tx-0">
@@ -386,7 +419,7 @@ export default function TrendsAnalytics({ trendsText }: Props) {
                 Search Interest Over Time
               </h4>
             </div>
-            <div className="text-[10px] text-tx-4">Last 12 months</div>
+            <div className="text-[11px] text-tx-2">Last 12 months</div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={data.timeSeriesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Header from "@/components/Header";
 import PromptInput from "@/components/PromptInput";
 import AgentGrid from "@/components/AgentGrid";
@@ -12,13 +12,22 @@ import ExportPanel from "@/components/ExportPanel";
 import KnowledgeBase from "@/components/KnowledgeBase";
 import AgentNetwork from "@/components/AgentNetwork";
 import VisualGallery from "@/components/VisualGallery";
+import PerformanceFeedback from "@/components/PerformanceFeedback";
+import CampaignHealthScore from "@/components/CampaignHealthScore";
+import ContentScorer from "@/components/ContentScorer";
+import ROIProjector from "@/components/ROIProjector";
+import CompetitorMatrix from "@/components/CompetitorMatrix";
+import ContentCalendar from "@/components/ContentCalendar";
+import ABVariantGenerator from "@/components/ABVariantGenerator";
+import BrandVoiceExtractor, { loadVoiceProfile } from "@/components/BrandVoiceExtractor";
+import MultiLanguageLocalizer from "@/components/MultiLanguageLocalizer";
+import { saveCampaign, updateCampaign, saveModelId, loadModelId } from "@/lib/storage";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
 export type Phase = "idle" | "planning" | "plan_review" | "executing" | "complete";
-
 export type AgentStatus = "idle" | "running" | "complete" | "error";
 
 export interface AgentState {
@@ -63,6 +72,9 @@ export interface CampaignData {
   strategy?: string;
   report?: string;
   visuals?: Visual[];
+  personas?: string;
+  emailSequence?: string;
+  landingPage?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -75,6 +87,9 @@ const INITIAL_AGENTS: AgentState[] = [
   { id: "trend_analyst", name: "Trend Analyst", status: "idle", completedSteps: [] },
   { id: "content_creator", name: "Content Creator", status: "idle", completedSteps: [] },
   { id: "strategist", name: "Strategist", status: "idle", completedSteps: [] },
+  { id: "persona_builder", name: "Persona Builder", status: "idle", completedSteps: [] },
+  { id: "email_strategist", name: "Email Strategist", status: "idle", completedSteps: [] },
+  { id: "landing_page", name: "Landing Page", status: "idle", completedSteps: [] },
   { id: "report_generator", name: "Report Builder", status: "idle", completedSteps: [] },
 ];
 
@@ -145,6 +160,52 @@ export default function Home() {
   const [kbOpen, setKbOpen] = useState(false);
   const [customModelId, setCustomModelId] = useState<string | null>(null);
   const [generatingVisuals, setGeneratingVisuals] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [localizeOpen, setLocalizeOpen] = useState(false);
+  const [voiceProfile, setVoiceProfile] = useState(loadVoiceProfile());
+
+  // Tracks the localStorage ID of the current saved campaign for updates
+  const savedIdRef = useRef<string | null>(null);
+
+  /* ---- Restore KB model ID from localStorage on mount ---- */
+  useEffect(() => {
+    const saved = loadModelId();
+    if (saved) setCustomModelId(saved);
+  }, []);
+
+  /* ---- Persist KB model ID when it changes ---- */
+  useEffect(() => {
+    saveModelId(customModelId);
+  }, [customModelId]);
+
+  /* ---- Auto-save campaign to localStorage when complete ---- */
+  useEffect(() => {
+    if (phase === "complete" && campaign) {
+      if (!savedIdRef.current) {
+        // First save
+        const id = saveCampaign(campaign, plan);
+        savedIdRef.current = id;
+        // Show feedback prompt after a short delay
+        setTimeout(() => setShowFeedback(true), 1500);
+      }
+    }
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ---- Update saved campaign on refinement ---- */
+  useEffect(() => {
+    if (savedIdRef.current && phase === "complete" && campaign) {
+      updateCampaign(savedIdRef.current, campaign);
+    }
+  }, [campaign]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ---- Reset saved ID when a new campaign starts ---- */
+  const resetSession = useCallback(() => {
+    savedIdRef.current = null;
+    setShowFeedback(false);
+  }, []);
+
+  /* ---- Agent state helpers ---- */
 
   const updateAgent = useCallback((id: string, patch: Partial<AgentState>) => {
     setAgents((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
@@ -212,9 +273,10 @@ export default function Home() {
     },
   }), [updateAgent]);
 
-  /* ---------- Phase 1: Plan ---------- */
+  /* ---- Phase 1: Plan ---- */
 
   const handleSubmit = useCallback(async (brief: string) => {
+    resetSession();
     setAgents(INITIAL_AGENTS.map((a) => ({ ...a })));
     setCampaign({ brief });
     setPlan(null);
@@ -229,7 +291,10 @@ export default function Home() {
         body: JSON.stringify({ action: "plan", brief, customModelId }),
         signal: abortRef.current.signal,
       });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
 
       await consumeStream(res, {
         ...buildStreamHandlers(),
@@ -244,9 +309,9 @@ export default function Home() {
         setPhase("idle");
       }
     }
-  }, [buildStreamHandlers]);
+  }, [buildStreamHandlers, customModelId, resetSession]);
 
-  /* ---------- Phase 2: Execute (after plan approval) ---------- */
+  /* ---- Phase 2: Execute ---- */
 
   const handleApprove = useCallback(async (userNotes?: string) => {
     if (!campaign) return;
@@ -281,9 +346,9 @@ export default function Home() {
         setPhase("complete");
       }
     }
-  }, [campaign, plan, buildStreamHandlers]);
+  }, [campaign, plan, buildStreamHandlers, customModelId]);
 
-  /* ---------- Refine ---------- */
+  /* ---- Refine ---- */
 
   const handleRefine = useCallback(async (agentId: string, feedback: string) => {
     if (!campaign) return;
@@ -326,13 +391,12 @@ export default function Home() {
       if (err instanceof Error) console.error(err);
       setIsRefining(false);
     }
-  }, [campaign, buildStreamHandlers, updateAgent]);
+  }, [campaign, buildStreamHandlers, updateAgent, customModelId]);
 
-  /* ---------- Generate Visuals ---------- */
+  /* ---- Generate Visuals ---- */
 
   const handleGenerateVisuals = useCallback(async () => {
     if (!campaign?.content || !campaign?.brief) return;
-    
     setGeneratingVisuals(true);
     try {
       const res = await fetch("/api/visuals", {
@@ -344,12 +408,10 @@ export default function Home() {
           campaignName: campaign.brief.split("\n")[0] || "Campaign",
         }),
       });
-
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to generate visuals");
       }
-
       const result = await res.json();
       setCampaign((prev) => (prev ? { ...prev, visuals: result.visuals || [] } : prev));
     } catch (err: unknown) {
@@ -359,7 +421,7 @@ export default function Home() {
     }
   }, [campaign]);
 
-  /* ---------- Stop ---------- */
+  /* ---- Stop ---- */
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -367,7 +429,7 @@ export default function Home() {
     else if (phase === "executing") setPhase("complete");
   }, [phase]);
 
-  /* ---------- Derived state ---------- */
+  /* ---- Derived ---- */
 
   const isRunning = phase === "planning" || phase === "executing" || isRefining;
   const hasOutput = !!(campaign && (campaign.research || campaign.trends || campaign.content || campaign.strategy || campaign.report));
@@ -375,26 +437,73 @@ export default function Home() {
   const showWorkspace = phase !== "idle";
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface-0">
-      <Header phase={phase} onOpenKB={() => setKbOpen(true)} hasCustomModel={!!customModelId} />
+    <div className="min-h-screen flex flex-col">
+      <Header phase={phase} onOpenKB={() => setKbOpen(true)} hasCustomModel={!!customModelId} onOpenVoice={() => setVoiceOpen(true)} hasVoiceProfile={!!voiceProfile} />
       <KnowledgeBase
         open={kbOpen}
         onClose={() => setKbOpen(false)}
         onModelReady={setCustomModelId}
         activeModelId={customModelId}
       />
+      <BrandVoiceExtractor
+        open={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onVoiceReady={setVoiceProfile}
+      />
+      <MultiLanguageLocalizer
+        open={localizeOpen}
+        onClose={() => setLocalizeOpen(false)}
+        campaign={campaign}
+        plan={plan}
+      />
 
       <section className="border-b border-edge">
-        <div className="max-w-5xl mx-auto px-5 py-8 sm:py-10">
+        <div className="max-w-5xl mx-auto px-5 py-10 sm:py-14">
           {phase === "idle" && (
-            <div className="text-center mb-8 anim-fade-up">
-              <h2 className="text-2xl sm:text-3xl font-semibold text-tx-0 tracking-tight">
-                Build a complete campaign in minutes
-              </h2>
-              <p className="mt-2 text-sm text-tx-3 max-w-md mx-auto leading-relaxed">
-                Six specialist agents research, analyze, create, and deliver a
-                ready-to-execute campaign — with you in control at every step.
+            <div className="text-center mb-10 anim-fade-up">
+              {/* Live badge */}
+              <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.06] px-3.5 py-1.5 mb-5 badge-live">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                </span>
+                <span className="text-[11px] font-semibold text-brand tracking-wide uppercase">
+                  9 AI Agents · Live
+                </span>
+              </div>
+
+              {/* Hero headline */}
+              <h1 className="hero-headline text-gradient-brand mb-5">
+                Launch campaigns that<br className="hidden sm:block" /> actually convert
+              </h1>
+
+              {/* Sub */}
+              <p className="hero-sub mx-auto mb-7">
+                Nine specialist agents research markets, analyze trends, craft content,
+                build personas, project ROI, and deliver a ready-to-execute campaign brief
+                — in minutes, not weeks.
               </p>
+
+              {/* Feature pills */}
+              <div className="flex flex-wrap justify-center gap-2">
+                {[
+                  { label: "Market Research" },
+                  { label: "Trend Analysis" },
+                  { label: "AI Content" },
+                  { label: "Audience Personas" },
+                  { label: "ROI Projector" },
+                  { label: "Email Sequences" },
+                  { label: "Landing Page Brief" },
+                  { label: "12-Week Calendar" },
+                ].map((f) => (
+                  <span
+                    key={f.label}
+                    className="text-[11px] font-medium text-tx-2 bg-surface-2/50 border border-edge rounded-full px-3 py-1 hover:border-brand/30 hover:text-brand/80 transition-colors"
+                  >
+                    {f.label}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
           <PromptInput onSubmit={handleSubmit} onStop={handleStop} isRunning={isRunning} phase={phase} />
@@ -413,18 +522,24 @@ export default function Home() {
 
             {/* Progress bar */}
             {(phase === "planning" || phase === "executing") && (
-              <div className="anim-fade-up">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-medium text-tx-3 uppercase tracking-widest">
-                    {phase === "planning" ? "Planning" : "Executing"}
-                  </span>
+              <div className="anim-fade-up glass-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                    </span>
+                    <span className="text-[11px] font-semibold text-tx-2 uppercase tracking-widest">
+                      {phase === "planning" ? "Planning campaign" : "Executing pipeline"}
+                    </span>
+                  </div>
                   <span className="text-[11px] text-tx-4 tabular-nums font-mono">
-                    {completedCount} / {agents.length}
+                    {completedCount} <span className="text-tx-4/50">/ {agents.length}</span>
                   </span>
                 </div>
                 <div className="h-[3px] rounded-full bg-surface-3 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-brand to-ok transition-all duration-1000 ease-out"
+                    className="h-full rounded-full bg-gradient-to-r from-brand via-violet-400 to-ok transition-all duration-1000 ease-out"
                     style={{ width: `${(completedCount / agents.length) * 100}%` }}
                   />
                 </div>
@@ -453,7 +568,7 @@ export default function Home() {
             {/* Material gallery */}
             {campaign?.content && <MaterialGallery content={campaign.content} />}
 
-            {/* Visual content gallery */}
+            {/* Visual gallery */}
             {phase === "complete" && campaign?.content && (
               <VisualGallery
                 visuals={campaign.visuals || []}
@@ -462,23 +577,71 @@ export default function Home() {
               />
             )}
 
-            {/* Post-completion: refinement + export */}
-            {phase === "complete" && (
+            {/* Post-completion intelligence layer */}
+            {phase === "complete" && campaign && (
               <>
+                {/* Health Score */}
+                <CampaignHealthScore campaign={campaign} plan={plan} />
+
+                {/* Content Scorer */}
+                {campaign.content && <ContentScorer content={campaign.content} />}
+
+                {/* A/B Variant Generator */}
+                {campaign.content && (
+                  <ABVariantGenerator content={campaign.content} brief={campaign.brief} />
+                )}
+
+                {/* Competitor Matrix */}
+                {campaign.research && <CompetitorMatrix research={campaign.research} />}
+
+                {/* ROI Projector */}
+                <ROIProjector plan={plan} brief={campaign.brief} />
+
+                {/* Content Calendar */}
+                {campaign.content && (
+                  <ContentCalendar plan={plan} content={campaign.content} />
+                )}
+
                 <RefinementChat
                   onRefine={handleRefine}
                   isRefining={isRefining}
                   availableAgents={agents.filter((a) => a.status === "complete" && a.id !== "orchestrator")}
                 />
-                <ExportPanel campaign={campaign} plan={plan} />
+                <ExportPanel
+                  campaign={campaign}
+                  plan={plan}
+                  onLocalize={() => setLocalizeOpen(true)}
+                />
+
+                {/* Performance feedback */}
+                {showFeedback && (
+                  <PerformanceFeedback
+                    campaignId={savedIdRef.current}
+                    onDismiss={() => setShowFeedback(false)}
+                  />
+                )}
               </>
             )}
           </div>
         </section>
       )}
 
-      <footer className="mt-auto py-5 text-center text-[11px] text-tx-4">
-        Bottengram &middot; Multi-Agent AI Engine &middot; Powered by Mistral &amp; GetAiReady
+      <footer className="mt-auto border-t border-edge/50 py-6">
+        <div className="max-w-5xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-[6px] bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+              <span className="text-[8px] font-bold text-white">B</span>
+            </div>
+            <span className="text-[11px] font-semibold text-tx-3">CampaignForge</span>
+          </div>
+          <div className="flex items-center gap-4 text-[11px] text-tx-3">
+            <span>9 Specialist Agents</span>
+            <span className="text-tx-4/30">&middot;</span>
+            <span>Multi-LLM Pipeline</span>
+            <span className="text-tx-4/30">&middot;</span>
+            <span>Powered by Mistral &amp; Claude</span>
+          </div>
+        </div>
       </footer>
     </div>
   );
@@ -495,6 +658,9 @@ function agentIdToField(agentId: string): string {
     content_creator: "content",
     strategist: "strategy",
     report_generator: "report",
+    persona_builder: "personas",
+    email_strategist: "emailSequence",
+    landing_page: "landingPage",
   };
   return map[agentId] || agentId;
 }

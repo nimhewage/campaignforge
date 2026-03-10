@@ -53,7 +53,7 @@ export default function VisualGallery({ visuals, isGenerating, onGenerate }: Pro
               Visual Content
             </h3>
             {hasVisuals && (
-              <span className="text-[10px] text-tx-4 ml-1">
+              <span className="text-[11px] text-tx-2 ml-1">
                 {successCount} / {visuals.length} generated
               </span>
             )}
@@ -84,7 +84,7 @@ export default function VisualGallery({ visuals, isGenerating, onGenerate }: Pro
               <ImageIcon className="w-8 h-8 text-brand/40" />
             </div>
             <p className="text-[13px] text-tx-2 font-medium">No visuals generated yet</p>
-            <p className="text-[11px] text-tx-4 mt-1 max-w-md mx-auto">
+            <p className="text-[12px] text-tx-2 mt-1 max-w-md mx-auto">
               Click "Generate Visuals" to create banners, social media images, and video shorts
               based on your campaign content
             </p>
@@ -95,7 +95,7 @@ export default function VisualGallery({ visuals, isGenerating, onGenerate }: Pro
           <div className="text-center py-12">
             <Loader2 className="w-12 h-12 text-brand animate-spin mx-auto mb-3" />
             <p className="text-[13px] text-tx-2 font-medium">Creating visual content...</p>
-            <p className="text-[11px] text-tx-4 mt-1">
+            <p className="text-[11px] text-tx-3 mt-1">
               Generating images and video shorts. This may take 1-2 minutes.
             </p>
           </div>
@@ -107,7 +107,7 @@ export default function VisualGallery({ visuals, isGenerating, onGenerate }: Pro
             {images.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <ImageIcon className="w-3.5 h-3.5 text-tx-3" />
+                  <ImageIcon className="w-3.5 h-3.5 text-tx-2" />
                   <h4 className="text-[11px] font-semibold text-tx-2 uppercase tracking-widest">
                     Images ({images.length})
                   </h4>
@@ -259,13 +259,13 @@ function VisualCard({
         {/* Prompt toggle */}
         <button
           onClick={onTogglePrompt}
-          className="text-[10px] text-tx-4 hover:text-brand transition-colors cursor-pointer"
+          className="text-[10px] text-tx-3 hover:text-brand transition-colors cursor-pointer"
         >
           {expanded ? "Hide prompt" : "Show prompt"}
         </button>
 
         {expanded && (
-          <p className="mt-2 text-[10px] text-tx-3 leading-relaxed bg-surface-0/60 rounded-lg px-2.5 py-2 font-mono">
+          <p className="mt-2 text-[10px] text-tx-2 leading-relaxed bg-surface-0/60 rounded-lg px-2.5 py-2 font-mono">
             {visual.prompt}
           </p>
         )}

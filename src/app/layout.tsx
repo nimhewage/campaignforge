@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Bottengram — AI Campaign Engine",
+  title: "CampaignForge — AI Campaign Engine",
   description: "Multi-agent AI marketing campaign system powered by Mistral",
 };
 

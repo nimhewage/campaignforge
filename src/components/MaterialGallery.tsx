@@ -83,7 +83,7 @@ function CopyBtn({ text }: { text: string }) {
         setDone(true);
         setTimeout(() => setDone(false), 2000);
       }}
-      className="flex items-center gap-1 text-[10px] text-tx-4 hover:text-tx-2 transition-colors px-2 py-1 rounded border border-edge hover:border-edge-b cursor-pointer"
+      className="flex items-center gap-1 text-[10px] text-tx-3 hover:text-tx-1 transition-colors px-2 py-1 rounded border border-edge hover:border-edge-b cursor-pointer"
     >
       <Icon className="w-3 h-3" />
       {done ? "Copied" : "Copy"}
@@ -191,10 +191,10 @@ export default function MaterialGallery({ content }: { content: string }) {
   return (
     <div className="anim-fade-up">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[12px] font-semibold text-tx-2 uppercase tracking-widest">
+        <h3 className="text-[12px] font-semibold text-tx-1 uppercase tracking-widest">
           Campaign Materials
         </h3>
-        <span className="text-[10px] text-tx-4">{sections.length} deliverables</span>
+        <span className="text-[11px] text-tx-2">{sections.length} deliverables</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {sections.map((section, i) => (
